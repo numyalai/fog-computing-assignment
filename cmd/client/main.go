@@ -4,52 +4,9 @@ import (
 	"bytes"
 	"log"
 	"net/http"
-	"time"
+
+	"github.com/numyalai/fog-computing-assignment/pkg/util"
 )
-
-var baseSleep = 1000
-var sleepFactor = 1
-
-func sendLoop(reqBuffer *RequestBuffer) {
-	client := &http.Client{}
-	for {
-		if len(*reqBuffer.buffer) <= 0 {
-			var sleepDuration = baseSleep * sleepFactor
-			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
-			if sleepFactor < 120 {
-				sleepFactor = sleepFactor * 2
-			}
-			continue
-		}
-		reqBuffer.mu.Lock()
-		req := (*reqBuffer.buffer)[0]
-		log.Println("Request := ", req)
-		tmp, err := http.NewRequest("POST", "http://localhost:5001", bytes.NewBufferString(req))
-
-		if err != nil {
-			reqBuffer.mu.Unlock()
-			log.Println("Unable to create HTTP POST request", err)
-			return
-		}
-
-		resp, err := client.Do(tmp)
-
-		if err != nil {
-			var sleepDuration = baseSleep * sleepFactor
-			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
-			if sleepFactor < 120 {
-				sleepFactor = sleepFactor * 2
-			}
-			reqBuffer.mu.Unlock()
-			continue
-		}
-
-		log.Println(resp)
-
-		*reqBuffer.buffer = (*reqBuffer.buffer)[1:] // remove handled element from queue
-		reqBuffer.mu.Unlock()
-	}
-}
 
 func main() {
 	log.SetPrefix("client: ")
@@ -59,8 +16,8 @@ func main() {
 	server := http.NewServeMux()
 
 	buf := make([]string, 0)
-	var reqBuffer = RequestBuffer{buffer: &buf}
-	go sendLoop(&reqBuffer)
+	var reqBuffer = util.RequestBuffer{Buffer: &buf}
+	go util.SendLoop(&reqBuffer, "http://localhost:5001")
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
@@ -68,9 +25,9 @@ func main() {
 		buffer.ReadFrom(r.Body)
 		body := buffer.String()
 		log.Println(body)
-		reqBuffer.mu.Lock()
-		*reqBuffer.buffer = append(*reqBuffer.buffer, body)
-		reqBuffer.mu.Unlock()
+		reqBuffer.Mu.Lock()
+		*reqBuffer.Buffer = append(*reqBuffer.Buffer, body)
+		reqBuffer.Mu.Unlock()
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
