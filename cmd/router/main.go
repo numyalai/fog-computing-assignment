@@ -17,7 +17,7 @@ func main() {
 
 	buf := make([]string, 0)
 	var reqBuffer = util.RequestBuffer{Buffer: &buf}
-	go util.SendLoop(&reqBuffer, "http://localhost:5002")
+	go util.SendLoop(&reqBuffer, "http://localhost:5002/forward")
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
@@ -31,8 +31,18 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	server.HandleFunc("/forward/", func(w http.ResponseWriter, r *http.Request) {
-		// TODO: enable forwarding requests from here to be adaptable to any software running behind this providing HTTP endpoints
+	server.HandleFunc("/forward", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
+		buffer := new(bytes.Buffer)
+		buffer.ReadFrom(r.Body)
+		body := buffer.String()
+		log.Println(body)
+		reqBuffer.Mu.Lock()
+		*reqBuffer.Buffer = append(*reqBuffer.Buffer, body)
+		reqBuffer.Mu.Unlock()
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK\n"))
 	})
 
 	log.Printf("Serving at %s", listenAddr)

@@ -30,11 +30,19 @@ func main() {
 		reqBuffer.Mu.Unlock()
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		w.Write([]byte("OK\n"))
 	})
 
-	server.HandleFunc("/forward/", func(w http.ResponseWriter, r *http.Request) {
-		// TODO: enable forwarding requests from here to be adaptable to any software running behind this providing HTTP endpoints
+	server.HandleFunc("/forward", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
+		log.Println(r)
+		buffer := new(bytes.Buffer)
+		buffer.ReadFrom(r.Body)
+		body := buffer.String()
+		log.Println("Body := " + string(body))
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
 	})
 
 	log.Printf("Serving at %s", listenAddr)
