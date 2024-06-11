@@ -14,7 +14,7 @@ func main() {
 	server := http.NewServeMux()
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s request from %s:%d", r.Method, r.RemoteAddr, r.Response.Request.URL.Port())
+		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
 		buffer := new(bytes.Buffer)
 		buffer.ReadFrom(r.Body)
 		body := buffer.String()
