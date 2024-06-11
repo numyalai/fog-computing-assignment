@@ -7,7 +7,7 @@ all: clean build start
 build: clean router client
 
 router client: $(GO_FILES)
-	@go build -o $@ -v $(PKG)/services/$@
+	@go build -o $@ -v $(PKG)/cmd/$@
 
 start: router client
 	./start.sh

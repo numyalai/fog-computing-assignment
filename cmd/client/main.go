@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"log"
 	"net/http"
-	"sync"
 	"time"
 )
 
@@ -25,7 +24,6 @@ func sendLoop(reqBuffer *RequestBuffer) {
 		reqBuffer.mu.Lock()
 		req := (*reqBuffer.buffer)[0]
 		log.Println("Request := ", req)
-		// TODO: send request to router
 		tmp, err := http.NewRequest("POST", "http://localhost:5001", bytes.NewBufferString(req))
 
 		if err != nil {
@@ -51,11 +49,6 @@ func sendLoop(reqBuffer *RequestBuffer) {
 		*reqBuffer.buffer = (*reqBuffer.buffer)[1:] // remove handled element from queue
 		reqBuffer.mu.Unlock()
 	}
-}
-
-type RequestBuffer struct {
-	mu     sync.Mutex
-	buffer *[]string
 }
 
 func main() {
