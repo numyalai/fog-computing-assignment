@@ -4,13 +4,13 @@ GO_FILES := $(shell find . -name '*.go' | grep -v /vendor/ | grep -v /ext/ | gre
 
 all: clean build start
 
-build: clean router client
+build: router client watcher
 
-router client: $(GO_FILES)
+router client watcher: $(GO_FILES)
 	@go build -o $@ -v $(PKG)/cmd/$@
 
-start: router client
+start: router client watcher
 	./start.sh
 
 clean:
-	rm -f router client
+	rm -f router client watcher

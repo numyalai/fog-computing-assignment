@@ -2,4 +2,5 @@
 trap 'kill $(jobs -p)' SIGINT
 ./router &
 ./client &
+./watcher &
 wait
