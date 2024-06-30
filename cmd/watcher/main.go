@@ -122,13 +122,15 @@ func main() {
 			Free:  idle,
 			Total: user + niced + system + idle,
 		}
-		var tmp = util.Message{
+		var tmp = util.WatcherMessage{
 			Memory: memData,
 			Cpu:    cpuData,
 		}
-		body := new(bytes.Buffer)
-		json.NewEncoder(body).Encode(tmp)
-		req, err := http.NewRequest("POST", clientEndpoint, body)
+		body, err := json.Marshal(tmp)
+		if err != nil {
+			log.Println("Unable to marshal body message.", err)
+		}
+		req, err := http.NewRequest("POST", clientEndpoint, bytes.NewBuffer(body))
 		if err != nil {
 			log.Panicln("Unable to creat HTTP POST request", err)
 			continue

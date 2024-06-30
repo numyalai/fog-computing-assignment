@@ -10,7 +10,7 @@ type CpuData struct {
 	Total uint64
 }
 
-type Message struct {
+type WatcherMessage struct {
 	Memory MemoryData
 	Cpu    CpuData
 }
