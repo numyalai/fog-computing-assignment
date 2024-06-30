@@ -26,6 +26,6 @@ The `Storage` struct in `storage.go` is used to manage clients. It includes the 
 To get started with this project, clone the repository and navigate to the project directory:
 
 ```bash
-git clone https://github.com/yourusername/fog-computing-assignment.git
+git clone https://github.com/numyalai/fog-computing-assignment.git
 cd fog-computing-assignment
 ```
