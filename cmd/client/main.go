@@ -30,7 +30,7 @@ func main() {
 			log.Println("Unable to parse requests body: ", err)
 		}
 		msg := util.ClientMessage{
-			Client: "",
+			Client: listenAddr + "/forward",
 			Data:   t,
 		}
 		log.Println(t)

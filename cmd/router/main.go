@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -21,11 +22,14 @@ func main() {
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
-		log.Println(r)
-		buffer := new(bytes.Buffer)
+		buffer := &bytes.Buffer{}
 		buffer.ReadFrom(r.Body)
-		body := buffer.String()
-		log.Println("Body := " + string(body))
+		t := util.ClientMessage{}
+		err := json.Unmarshal(buffer.Bytes(), &t)
+		if err != nil {
+			log.Println("Unable to unmarshal HTTP request from client.", err)
+		}
+		log.Println(t)
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
