@@ -64,3 +64,9 @@ func (cs *Storage) DeregisterInactiveClients(timeout time.Duration) {
 		}
 	}
 }
+
+func (cs *Storage) GetAllClients() map[string]*Client {
+	cs.Mu.Lock()
+	defer cs.Mu.Unlock()
+	return cs.Storage
+}
