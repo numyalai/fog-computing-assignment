@@ -30,8 +30,8 @@ func main() {
 			log.Println("Unable to parse requests body: ", err)
 		}
 		msg := util.ClientMessage{
-			Client: listenAddr + "/forward",
-			Data:   t,
+			Endpoint: listenAddr + "/forward",
+			Data:     t,
 		}
 		log.Println(t)
 		reqBuffer.Mu.Lock()

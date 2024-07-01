@@ -1,5 +1,9 @@
 package util
 
+type ClientMessage struct {
+	Endpoint string
+	Data     WatcherMessage
+}
 type MemoryData struct {
 	Free  uint64
 	Total uint64
