@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"net/http"
 
@@ -15,18 +16,26 @@ func main() {
 	listenAddr := "localhost:5002"
 	server := http.NewServeMux()
 
-	buf := make([]string, 0)
-	var reqBuffer = util.RequestBuffer{Buffer: &buf}
-	go util.SendLoop(&reqBuffer, "http://localhost:5001")
+	buf := make([]util.ClientMessage, 0)
+	var reqBuffer = util.ClientRequestBuffer{Buffer: &buf}
+	go util.ClientSendLoop(&reqBuffer, "http://localhost:5001")
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
-		buffer := new(bytes.Buffer)
+		buffer := &bytes.Buffer{}
 		buffer.ReadFrom(r.Body)
-		body := buffer.String()
-		log.Println(body)
+		t := util.WatcherMessage{}
+		err := json.Unmarshal(buffer.Bytes(), &t)
+		if err != nil {
+			log.Println("Unable to parse requests body: ", err)
+		}
+		msg := util.ClientMessage{
+			Client: listenAddr + "/forward",
+			Data:   t,
+		}
+		log.Println(t)
 		reqBuffer.Mu.Lock()
-		*reqBuffer.Buffer = append(*reqBuffer.Buffer, body)
+		*reqBuffer.Buffer = append(*reqBuffer.Buffer, msg)
 		reqBuffer.Mu.Unlock()
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
