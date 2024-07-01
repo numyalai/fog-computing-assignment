@@ -1,4 +1,5 @@
 ./client
 ./router
 ./watcher
-
+terraform/.terraform*
+terraform/terraform.tfstate*
