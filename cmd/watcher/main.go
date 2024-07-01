@@ -1,10 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"log"
+	"net/http"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/numyalai/fog-computing-assignment/pkg/util"
 )
 
 func getMemorySlice(freeOutput string) []string {
@@ -57,7 +63,8 @@ func main() {
 	log.Println("Starting ...")
 
 	var clientEndpoint = "http://localhost:5002"
-	log.Println(clientEndpoint)
+
+	client := &http.Client{}
 	for {
 		cmd := exec.Command("free")
 		free, err := cmd.Output()
@@ -72,25 +79,72 @@ func main() {
 		if err != nil {
 			log.Println(err)
 		}
-		log.Println("MEM:")
 		var memSlice = getMemorySlice(string(free))
-		var memTotal = memSlice[0]
-		var memUsed = memSlice[1]
-		var memFree = memSlice[2]
-		log.Printf("%s / %s ( %s )", memUsed, memTotal, memFree)
-		log.Println("CPU:")
+		memTotal, err := strconv.ParseUint(memSlice[0], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse total available memory.", err)
+			time.Sleep(time.Duration(3) * time.Second)
+			continue
+		}
+		memFree, err := strconv.ParseUint(memSlice[2], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse free available memory", err)
+			continue
+		}
+		var memData = util.MemoryData{
+			Free:  memFree,
+			Total: memTotal,
+		}
 		var cpuSlice = getCpuSlice(string(cpu))
-		for _, core := range cpuSlice {
-			var user = core[0]
-			var niced = core[1]
-			var system = core[2]
-			var idle = core[3]
-			log.Printf("%s %s %s / %s", user, niced, system, idle)
+		var core = cpuSlice[0]
+		user, err := strconv.ParseUint(core[0], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse user cycles of CPU", err)
+			continue
+		}
+		niced, err := strconv.ParseUint(core[1], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse user niced cycles of CPU", err)
+			continue
+		}
+		system, err := strconv.ParseUint(core[2], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse system cycles of CPU", err)
+			continue
+		}
+		idle, err := strconv.ParseUint(core[3], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse idle cycles of CPU", err)
+			continue
 		}
 
-		// TODO: pack structs
-		// send requests to the client service
-
-		time.Sleep(time.Duration(3) * time.Second)
+		var cpuData = util.CpuData{
+			Free:  idle,
+			Total: user + niced + system + idle,
+		}
+		var tmp = util.WatcherMessage{
+			Memory: memData,
+			Cpu:    cpuData,
+		}
+		body, err := json.Marshal(tmp)
+		if err != nil {
+			log.Println("Unable to marshal body message.", err)
+		}
+		req, err := http.NewRequest("POST", clientEndpoint, bytes.NewBuffer(body))
+		if err != nil {
+			log.Panicln("Unable to creat HTTP POST request", err)
+			continue
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Panicln("Unable to perform HTTP POST request to client", err)
+			continue
+		}
+		if resp.StatusCode >= 400 {
+			log.Panicf("Error in request handeling at client. HTTP %d %s", resp.StatusCode, resp.Status)
+			continue
+		}
+		log.Printf("Sent sytem status to %s", clientEndpoint)
+		time.Sleep(time.Duration(3) * time.Second) // might need to change the timescaling here later
 	}
 }
