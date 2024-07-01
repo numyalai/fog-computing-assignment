@@ -6,9 +6,8 @@ import (
 )
 
 type Client struct {
-	ID        string
-	RAM       string `json:"ram"`
-	CPU       string `json:"cpu"`
+	RAM       MemoryData
+	CPU       CpuData
 	Endpoint  string `json:"endpoint"`
 	UpdatedAt time.Time
 }
@@ -24,7 +23,7 @@ func NewStorage() *Storage {
 	}
 }
 
-func (cs *Storage) RegisterClient(clientID string, ram string, cpu string) {
+func (cs *Storage) RegisterClient(clientID string, ram MemoryData, cpu CpuData) {
 	cs.Mu.Lock()
 	defer cs.Mu.Unlock()
 	cs.Storage[clientID] = &Client{
@@ -34,7 +33,7 @@ func (cs *Storage) RegisterClient(clientID string, ram string, cpu string) {
 	}
 }
 
-func (s *Storage) UpdateClient(id string, ram string, cpu string) {
+func (s *Storage) UpdateClient(id string, ram MemoryData, cpu CpuData) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
