@@ -11,8 +11,8 @@ import (
 
 func deregisterInactiveClients(clientStorage *util.Storage) {
 	for {
-		clientStorage.DeregisterInactiveClients(5 * time.Minute)
-		time.Sleep(5 * time.Minute)
+		clientStorage.DeregisterInactiveClients(1 * time.Minute)
+		time.Sleep(1 * time.Minute)
 	}
 }
 

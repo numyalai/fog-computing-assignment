@@ -9,6 +9,7 @@ type Client struct {
 	ID        string
 	RAM       string `json:"ram"`
 	CPU       string `json:"cpu"`
+	Endpoint  string `json:"endpoint"`
 	UpdatedAt time.Time
 }
 
@@ -56,6 +57,7 @@ func (s *Storage) GetClient(id string) *Client {
 }
 
 func (cs *Storage) DeregisterInactiveClients(timeout time.Duration) {
+	// This is not needed as we are already locking the storage
 	cs.Mu.Lock()
 	defer cs.Mu.Unlock()
 	for clientID, client := range cs.Storage {

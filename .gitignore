@@ -1,4 +1,4 @@
-client
-router
-watcher
+./client
+./router
+./watcher
 
