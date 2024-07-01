@@ -112,6 +112,7 @@ func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer) {
 		}
 
 		log.Println(resp)
+		sleepFactor = 1
 		reqBuffer.Mu.Lock()
 		*reqBuffer.Buffer = (*reqBuffer.Buffer)[1:] // remove handled element from queue
 		reqBuffer.Mu.Unlock()
