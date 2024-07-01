@@ -7,10 +7,10 @@ all: clean build start
 build: router client watcher
 
 router client watcher: $(GO_FILES)
-	@go build -o $@ -v $(PKG)/cmd/$@
+	@go build -o ./services/$@ -v $(PKG)/cmd/$@
 
 start: router client watcher
 	./start.sh
 
 clean:
-	rm -f router client watcher
+	rm -rf ./services
