@@ -33,9 +33,12 @@ func getMemorySlice(freeOutput string) []string {
 func getCpuSlice(cpuOutput string) [][]string {
 	var cpuStat = make([][]string, 0)
 	var cpuLines = strings.Split(cpuOutput, "\n")
-	for i, line := range cpuLines {
+	for _, line := range cpuLines {
 		var skip = false
 		var index = -1
+		if !strings.Contains(line, "cpu") {
+			break
+		}
 		for pos, char := range line {
 			if !skip && char != ' ' {
 				continue
@@ -51,9 +54,6 @@ func getCpuSlice(cpuOutput string) [][]string {
 		}
 		var fields = strings.Split(line[index:], " ")
 		cpuStat = append(cpuStat, fields[:4])
-		if i >= 8 {
-			break
-		}
 	}
 	return cpuStat
 }
@@ -96,31 +96,42 @@ func main() {
 			Total: memTotal,
 		}
 		var cpuSlice = getCpuSlice(string(cpu))
-		var core = cpuSlice[0]
-		user, err := strconv.ParseUint(core[0], 10, 64)
-		if err != nil {
-			log.Panicln("Unable to parse user cycles of CPU", err)
-			continue
-		}
-		niced, err := strconv.ParseUint(core[1], 10, 64)
-		if err != nil {
-			log.Panicln("Unable to parse user niced cycles of CPU", err)
-			continue
-		}
-		system, err := strconv.ParseUint(core[2], 10, 64)
-		if err != nil {
-			log.Panicln("Unable to parse system cycles of CPU", err)
-			continue
-		}
-		idle, err := strconv.ParseUint(core[3], 10, 64)
-		if err != nil {
-			log.Panicln("Unable to parse idle cycles of CPU", err)
-			continue
+
+		var user uint64 = 0
+		var niced uint64 = 0
+		var system uint64 = 0
+		var idle uint64 = 0
+
+		for _, core := range cpuSlice {
+			tmpUser, err := strconv.ParseUint(core[0], 10, 64)
+			if err != nil {
+				log.Panicln("Unable to parse user cycles of CPU", err)
+				continue
+			}
+			tmpNiced, err := strconv.ParseUint(core[1], 10, 64)
+			if err != nil {
+				log.Panicln("Unable to parse user niced cycles of CPU", err)
+				continue
+			}
+			tmpSystem, err := strconv.ParseUint(core[2], 10, 64)
+			if err != nil {
+				log.Panicln("Unable to parse system cycles of CPU", err)
+				continue
+			}
+			tmpIdle, err := strconv.ParseUint(core[3], 10, 64)
+			if err != nil {
+				log.Panicln("Unable to parse idle cycles of CPU", err)
+				continue
+			}
+			user += tmpUser
+			niced += tmpNiced
+			system += tmpSystem
+			idle += tmpIdle
 		}
 
 		var cpuData = util.CpuData{
 			Free:  idle,
-			Total: user + niced + system + idle,
+			Total: user + niced + system,
 		}
 		var tmp = util.WatcherMessage{
 			Memory: memData,

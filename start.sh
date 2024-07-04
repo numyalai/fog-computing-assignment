@@ -1,6 +1,6 @@
 #!/bin/bash
 trap 'kill $(jobs -p)' SIGINT
-./router &
-./client &
-./watcher &
+./services/router &
+./services/client &
+./services/watcher &
 wait

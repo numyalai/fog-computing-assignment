@@ -28,17 +28,13 @@ func main() {
 
 	buf := make([]string, 0)
 	var reqBuffer = util.RouterRequestBuffer{Buffer: &buf}
-	go util.RouterSendLoop(&reqBuffer, "http://localhost:5002/forward")
-
+	go util.RouterSendLoop(storage, &reqBuffer)
 	go deregisterInactiveClients(storage)
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
 		buffer := &bytes.Buffer{}
 		buffer.ReadFrom(r.Body)
-		body := buffer.String()
-
-		log.Println("Body := " + string(body))
 		t := util.ClientMessage{}
 		err := json.Unmarshal(buffer.Bytes(), &t)
 		if err != nil {
@@ -61,8 +57,8 @@ func main() {
 		body := buffer.String()
 		log.Println(body)
 		reqBuffer.Mu.Lock()
+		defer reqBuffer.Mu.Unlock()
 		*reqBuffer.Buffer = append(*reqBuffer.Buffer, body)
-		reqBuffer.Mu.Unlock()
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK\n"))
