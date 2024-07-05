@@ -29,13 +29,23 @@ resource "google_compute_firewall" "ssh-rule" {
   source_ranges = ["0.0.0.0/0"]
 }
 
+resource "google_compute_firewall" "router-rule" {
+  name = "demo-router"
+  network = google_compute_network.vpc_network.name
+  allow {
+    protocol = "tcp"
+    ports = ["9001"]
+  }
+  target_tags = ["router"]
+  source_ranges = ["0.0.0.0/0"]
+}
 
 # Create a single Compute Engine instance
 resource "google_compute_instance" "default" {
   name         = "router"
   machine_type = "e2-standard-2"
   zone         = "europe-west6-a"
-  tags         = ["ssh"]
+  tags         = ["ssh", "router"]
 
   boot_disk {
     initialize_params {
