@@ -21,7 +21,7 @@ func main() {
 	log.SetPrefix("router: ")
 	log.Println("Starting ...")
 
-	listenAddr := "localhost:5001"
+	listenAddr := "0.0.0.0:5001"
 	server := http.NewServeMux()
 
 	storage := util.NewStorage()
