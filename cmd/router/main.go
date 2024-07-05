@@ -1,24 +1,55 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"log"
 	"net"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/numyalai/fog-computing-assignment/pkg/util"
 )
 
-/*func deregisterInactiveClients(clientStorage *util.Storage) {
+func deregisterInactiveClients(clientStorage *util.Storage) {
 	for {
 		clientStorage.DeregisterInactiveClients(1 * time.Minute)
 		time.Sleep(1 * time.Minute)
 	}
-}*/
+}
 
 func main() {
 	log.SetPrefix("router: ")
 	log.Println("Starting ...")
+
+	allocBuffer := make([]string, 0)
+	var reqBuffer = util.RouterRequestBuffer{Buffer: &allocBuffer}
+	server := http.NewServeMux()
+	server.HandleFunc("/forward", func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
+		buffer := new(bytes.Buffer)
+		buffer.ReadFrom(r.Body)
+		body := buffer.String()
+		log.Println(body)
+		reqBuffer.Mu.Lock()
+		defer reqBuffer.Mu.Unlock()
+		*reqBuffer.Buffer = append(*reqBuffer.Buffer, body)
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK\n"))
+	})
+	listenAddr := "0.0.0.0:6001"
+	log.Printf("Serving at %s", listenAddr)
+	err := http.ListenAndServe(listenAddr, server)
+
+	if err != nil {
+		log.Printf("%s", err)
+	}
+
+	storage := util.NewStorage()
+	go deregisterInactiveClients(storage)
+	//go util.RouterSendLoop(storage, &reqBuffer)
 
 	buf := make([]byte, 4096)
 	addr := net.UDPAddr{
@@ -44,22 +75,31 @@ func main() {
 		if err != nil {
 			log.Println("Unable to umarshal received UDP request. ", err)
 		}
+
+		t := util.ClientMessage{}
+		err = json.Unmarshal(req.Data, &t)
+		if err != nil {
+			log.Println("Unable to unmarshal HTTP request from client.", err)
+		}
+		log.Println(t)
+		storage.RegisterClient(raddr, t.Data.Memory, t.Data.Cpu)
+		storage.UpdateClient(raddr, t.Data.Memory, t.Data.Cpu)
+
 		tmp := util.AckPackage{
 			Id: req.Id,
 		}
 		log.Println(string(buf[:n]))
 
-		buf, err := json.Marshal(tmp)
+		resp, err := json.Marshal(tmp)
 		if err != nil {
 			log.Println("Unable to Marshal ack package. ", err)
 		}
-		_, err = ser.WriteToUDP(buf, raddr)
+		_, err = ser.WriteToUDP(resp, raddr)
 
 		if err != nil {
 			log.Println(err)
 		}
 	}
-	//server := http.NewServeMux()
 
 	/*storage := util.NewStorage()
 

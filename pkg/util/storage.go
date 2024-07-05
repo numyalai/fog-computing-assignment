@@ -1,29 +1,30 @@
 package util
 
 import (
+	"net"
 	"sync"
 	"time"
 )
 
 type Client struct {
-	RAM       MemoryData
-	CPU       CpuData
-	Endpoint  string `json:"endpoint"`
-	UpdatedAt time.Time
+	RAM        MemoryData
+	CPU        CpuData
+	Connection *net.UDPConn
+	UpdatedAt  time.Time
 }
 
 type Storage struct {
 	Mu      sync.Mutex
-	Storage map[string]*Client
+	Storage map[*net.UDPAddr]*Client
 }
 
 func NewStorage() *Storage {
 	return &Storage{
-		Storage: make(map[string]*Client),
+		Storage: make(map[*net.UDPAddr]*Client),
 	}
 }
 
-func (cs *Storage) RegisterClient(clientID string, ram MemoryData, cpu CpuData) {
+func (cs *Storage) RegisterClient(clientID *net.UDPAddr, ram MemoryData, cpu CpuData) {
 	cs.Mu.Lock()
 	defer cs.Mu.Unlock()
 	cs.Storage[clientID] = &Client{
@@ -33,7 +34,7 @@ func (cs *Storage) RegisterClient(clientID string, ram MemoryData, cpu CpuData) 
 	}
 }
 
-func (s *Storage) UpdateClient(id string, ram MemoryData, cpu CpuData) {
+func (s *Storage) UpdateClient(id *net.UDPAddr, ram MemoryData, cpu CpuData) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -44,7 +45,7 @@ func (s *Storage) UpdateClient(id string, ram MemoryData, cpu CpuData) {
 	}
 }
 
-func (s *Storage) GetClient(id string) *Client {
+func (s *Storage) GetClient(id *net.UDPAddr) *Client {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
@@ -66,7 +67,7 @@ func (cs *Storage) DeregisterInactiveClients(timeout time.Duration) {
 	}
 }
 
-func (cs *Storage) GetAllClients() map[string]*Client {
+func (cs *Storage) GetAllClients() map[*net.UDPAddr]*Client {
 	cs.Mu.Lock()
 	defer cs.Mu.Unlock()
 	return cs.Storage

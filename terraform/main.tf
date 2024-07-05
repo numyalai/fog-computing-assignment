@@ -34,7 +34,7 @@ resource "google_compute_firewall" "router-rule" {
   network = google_compute_network.vpc_network.name
   allow {
     protocol = "tcp"
-    ports = ["5001"]
+    ports = ["5001,6001"]
   }
   target_tags = ["router"]
   source_ranges = ["0.0.0.0/0"]

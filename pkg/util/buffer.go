@@ -1,11 +1,9 @@
 package util
 
 import (
-	"bytes"
 	"encoding/json"
 	"log"
 	"net"
-	"net/http"
 	"os"
 	"sync"
 	"time"
@@ -150,16 +148,15 @@ func ClientSendLoop(reqBuffer *ClientRequestBuffer, address string) {
 	}
 }
 
-func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer) {
+func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer, socket *net.UDPConn) {
 	var baseSleep = 1000
 	var sleepFactor = 1
-	client := &http.Client{}
 	for {
 		if len(*reqBuffer.Buffer) <= 0 {
 			time.Sleep(1000 * time.Millisecond)
 			continue
 		}
-		var address string
+		var address *net.UDPAddr
 		var cpu float64
 		var ram float64
 		for endpoint, data := range storage.GetAllClients() {
@@ -172,7 +169,7 @@ func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer) {
 				address = endpoint
 			}
 		}
-		if address != "" {
+		if address != nil {
 			log.Println("Unable to find suitable edge node. Retrying in 1 second.")
 			time.Sleep(1000 * time.Millisecond)
 			continue
@@ -180,18 +177,11 @@ func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer) {
 		reqBuffer.Mu.Lock()
 		req := (*reqBuffer.Buffer)[0]
 		reqBuffer.Mu.Unlock()
-		tmp, err := http.NewRequest("POST", address, bytes.NewBufferString(req))
-
-		if err != nil {
-			log.Println("Unable to create HTTP POST request", err)
-			return
-		}
-
-		resp, err := client.Do(tmp)
+		_, err := socket.WriteToUDP([]byte(req), address) // TODO: loop and retry after some fails with new routing decision
 
 		if err != nil {
 			var sleepDuration = baseSleep * sleepFactor
-			log.Printf("Failed to perform HTTP request. Retrying after %d seconds.", sleepDuration/1000)
+			log.Printf("Failed to forward datagram. Retrying after %d seconds.", sleepDuration/1000)
 			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
 			if sleepFactor < 120 {
 				sleepFactor = sleepFactor * 2
@@ -199,10 +189,14 @@ func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer) {
 			continue
 		}
 
-		log.Println(resp)
 		sleepFactor = 1
 		reqBuffer.Mu.Lock()
-		*reqBuffer.Buffer = (*reqBuffer.Buffer)[1:] // remove handled element from queue
+		for i, r := range *reqBuffer.Buffer {
+			if r == req {
+				(*reqBuffer.Buffer) = append((*reqBuffer.Buffer)[:i], (*reqBuffer.Buffer)[:i+1]...)
+				break
+			}
+		}
 		reqBuffer.Mu.Unlock()
 	}
 }
