@@ -21,13 +21,9 @@ type RouterRequestBuffer struct {
 	Buffer *[]string
 }
 
-type SentPackage struct {
+type PacketUDP struct {
 	Id   string
 	Data []byte
-}
-
-type AckPackage struct {
-	Id string
 }
 
 func Send2Client(conn *net.UDPConn, data string) error {
@@ -45,7 +41,7 @@ func Send2Router(conn *net.UDPConn, data ClientMessage) error {
 }
 
 func Send(conn *net.UDPConn, data []byte) error {
-	body := SentPackage{
+	body := PacketUDP{
 		Id:   uuid.New().String(),
 		Data: data,
 	}
@@ -74,7 +70,7 @@ func Send(conn *net.UDPConn, data []byte) error {
 
 func receiveAck(conn *net.UDPConn) (string, error) {
 	buf := make([]byte, 4096)
-	ack := AckPackage{}
+	ack := PacketUDP{}
 	n, _, err := conn.ReadFromUDP(buf)
 	if err != nil {
 		log.Println("Unable to read from UDP connection.", err)
@@ -115,7 +111,7 @@ func ClientSendLoop(reqBuffer *ClientRequestBuffer, address string) {
 	}
 
 	for {
-		c, err := net.DialUDP("udp", nil, &addr)
+		c, err := net.DialUDP("udp", nil, &addr) // TODO: rework listening on this and discriminate between ACKS and forwards
 		if err != nil {
 			log.Panic("Unable to establish udp connection. ", err)
 			os.Exit(3)

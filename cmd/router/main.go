@@ -75,7 +75,7 @@ func main() {
 			log.Println("Error in reading UDP occured. ", err)
 			continue
 		}
-		req := util.SentPackage{}
+		req := util.PacketUDP{}
 
 		err = json.Unmarshal(buf[:n], &req)
 		if err != nil {
@@ -87,12 +87,12 @@ func main() {
 		if err != nil {
 			log.Println("Unable to unmarshal HTTP request from client.", err)
 		}
-		log.Println(t)
 		storage.RegisterClient(raddr, t.Data.Memory, t.Data.Cpu)
 		storage.UpdateClient(raddr, t.Data.Memory, t.Data.Cpu)
 
-		tmp := util.AckPackage{
-			Id: req.Id,
+		tmp := util.PacketUDP{
+			Id:   req.Id,
+			Data: nil,
 		}
 		log.Println(string(buf[:n]))
 
