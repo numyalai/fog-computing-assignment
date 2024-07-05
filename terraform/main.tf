@@ -43,7 +43,7 @@ resource "google_compute_instance" "default" {
     }
   }
 
-  metadata_startup_script = "sudo apt-get update; sudo apt-get install -yq build-essential python3-pip rsync golang tmux; touch /root/authorized_keys; curl -X GET https://github.com/nkowallik.keys >> /root/.ssh/authorized_keys; curl -X GET https://github.com/numyalai.keys >> /root/.ssh/authorized_keys"
+  metadata_startup_script = "sudo apt-get update; sudo apt-get install -yq git build-essential python3-pip rsync golang tmux; touch /root/authorized_keys; curl -X GET https://github.com/nkowallik.keys >> /root/.ssh/authorized_keys; curl -X GET https://github.com/numyalai.keys >> /root/.ssh/authorized_keys"
 
   network_interface {
     subnetwork = google_compute_subnetwork.default.id
