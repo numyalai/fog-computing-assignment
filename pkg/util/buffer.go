@@ -65,7 +65,6 @@ func Send(conn *net.UDPConn, data []byte) error {
 		log.Println("Unable to read ack. ", readErr)
 		return readErr
 	}
-	log.Printf("%s == %s\n", messageID, body.Id)
 	if messageID == body.Id {
 		return nil
 	}

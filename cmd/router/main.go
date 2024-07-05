@@ -39,13 +39,16 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK\n"))
 	})
-	listenAddr := "0.0.0.0:6001"
-	log.Printf("Serving at %s", listenAddr)
-	err := http.ListenAndServe(listenAddr, server)
 
-	if err != nil {
-		log.Printf("%s", err)
-	}
+	go func() {
+		listenAddr := "0.0.0.0:6001"
+		log.Printf("Serving HTTP at %s", listenAddr)
+		err := http.ListenAndServe(listenAddr, server)
+		if err != nil {
+			log.Println("Unable to open HTTP server on %", listenAddr, err)
+			os.Exit(1)
+		}
+	}()
 
 	storage := util.NewStorage()
 	go deregisterInactiveClients(storage)
@@ -62,7 +65,10 @@ func main() {
 		log.Panic("Unable to open udp listening port. ", err)
 		os.Exit(1)
 	}
+	log.Printf("Serving UDP endpoint at %s:%d", addr.IP, addr.Port)
 	defer ser.Close()
+
+	log.Println("Entering UDP main loop")
 	for {
 		n, raddr, err := ser.ReadFromUDP(buf)
 		if err != nil {
