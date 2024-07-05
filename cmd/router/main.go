@@ -1,30 +1,67 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"log"
-	"net/http"
-	"time"
+	"net"
+	"os"
 
 	"github.com/numyalai/fog-computing-assignment/pkg/util"
 )
 
-func deregisterInactiveClients(clientStorage *util.Storage) {
+/*func deregisterInactiveClients(clientStorage *util.Storage) {
 	for {
 		clientStorage.DeregisterInactiveClients(1 * time.Minute)
 		time.Sleep(1 * time.Minute)
 	}
-}
+}*/
 
 func main() {
 	log.SetPrefix("router: ")
 	log.Println("Starting ...")
 
-	listenAddr := "0.0.0.0:5001"
-	server := http.NewServeMux()
+	buf := make([]byte, 4096)
+	addr := net.UDPAddr{
+		Port: 5001,
+		IP:   net.ParseIP("0.0.0.0"),
+	}
 
-	storage := util.NewStorage()
+	ser, err := net.ListenUDP("udp", &addr)
+	if err != nil {
+		log.Panic("Unable to open udp listening port. ", err)
+		os.Exit(1)
+	}
+	defer ser.Close()
+	for {
+		n, raddr, err := ser.ReadFromUDP(buf)
+		if err != nil {
+			log.Println("Error in reading UDP occured. ", err)
+			continue
+		}
+		req := util.SentPackage{}
+
+		err = json.Unmarshal(buf[:n], &req)
+		if err != nil {
+			log.Println("Unable to umarshal received UDP request. ", err)
+		}
+		tmp := util.AckPackage{
+			Id: req.Id,
+		}
+		log.Println(string(buf[:n]))
+
+		buf, err := json.Marshal(tmp)
+		if err != nil {
+			log.Println("Unable to Marshal ack package. ", err)
+		}
+		_, err = ser.WriteToUDP(buf, raddr)
+
+		if err != nil {
+			log.Println(err)
+		}
+	}
+	//server := http.NewServeMux()
+
+	/*storage := util.NewStorage()
 
 	buf := make([]string, 0)
 	var reqBuffer = util.RouterRequestBuffer{Buffer: &buf}
@@ -69,7 +106,7 @@ func main() {
 
 	if err != nil {
 		log.Printf("%s", err)
-	}
+	}*/
 
 	log.Println("Stopped.")
 }
