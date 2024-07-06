@@ -1,6 +1,8 @@
 package util
 
 import (
+	"fmt"
+	"net"
 	"sync"
 	"time"
 )
@@ -8,7 +10,7 @@ import (
 type Client struct {
 	RAM       MemoryData
 	CPU       CpuData
-	Endpoint  string `json:"endpoint"`
+	Address   *net.UDPAddr
 	UpdatedAt time.Time
 }
 
@@ -23,32 +25,37 @@ func NewStorage() *Storage {
 	}
 }
 
-func (cs *Storage) RegisterClient(clientID string, ram MemoryData, cpu CpuData) {
+func getUDPAddrRepresentation(addr *net.UDPAddr) string {
+	return fmt.Sprintf("%s:%d", addr.IP.String(), addr.Port)
+}
+
+func (cs *Storage) RegisterClient(clientID *net.UDPAddr, ram MemoryData, cpu CpuData) {
 	cs.Mu.Lock()
 	defer cs.Mu.Unlock()
-	cs.Storage[clientID] = &Client{
+	cs.Storage[getUDPAddrRepresentation(clientID)] = &Client{
 		RAM:       ram,
 		CPU:       cpu,
+		Address:   clientID,
 		UpdatedAt: time.Now(),
 	}
 }
 
-func (s *Storage) UpdateClient(id string, ram MemoryData, cpu CpuData) {
+func (s *Storage) UpdateClient(id *net.UDPAddr, ram MemoryData, cpu CpuData) {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	if client, exists := s.Storage[id]; exists {
+	if client, exists := s.Storage[getUDPAddrRepresentation(id)]; exists {
 		client.RAM = ram
 		client.CPU = cpu
 		client.UpdatedAt = time.Now()
 	}
 }
 
-func (s *Storage) GetClient(id string) *Client {
+func (s *Storage) GetClient(id *net.UDPAddr) *Client {
 	s.Mu.Lock()
 	defer s.Mu.Unlock()
 
-	if client, exists := s.Storage[id]; exists {
+	if client, exists := s.Storage[getUDPAddrRepresentation(id)]; exists {
 		return client
 	}
 
