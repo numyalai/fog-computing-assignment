@@ -29,12 +29,23 @@ resource "google_compute_firewall" "ssh-rule" {
   source_ranges = ["0.0.0.0/0"]
 }
 
-resource "google_compute_firewall" "router-rule" {
-  name = "demo-router"
+resource "google_compute_firewall" "router-http-rule" {
+  name = "demo-http-router"
   network = google_compute_network.vpc_network.name
   allow {
     protocol = "tcp"
-    ports = ["5001,6001"]
+    ports = ["6001"]
+  }
+  target_tags = ["router"]
+  source_ranges = ["0.0.0.0/0"]
+}
+
+resource "google_compute_firewall" "router-udp-rule" {
+  name = "demo-router"
+  network = google_compute_network.vpc_network.name
+  allow {
+    protocol = "udp"
+    ports = ["5001"]
   }
   target_tags = ["router"]
   source_ranges = ["0.0.0.0/0"]

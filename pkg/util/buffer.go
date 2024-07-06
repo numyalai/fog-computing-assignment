@@ -51,7 +51,6 @@ func Send(conn *net.UDPConn, data []byte, id string, acks *SafeAcks) error {
 }
 
 func SendMessage(conn *net.UDPConn, msg []byte) error {
-	// TODO: Check if we need to lock the mutex here or not.
 	var tryNumber = 0
 	for {
 		_, err := conn.Write(msg)
@@ -79,6 +78,7 @@ type SafeBuffer struct {
 }
 
 func RouterConnection(reqBuffer *RequestBuffer, address string, packets *SafeBuffer) {
+	log.Println(address)
 	var baseSleep = 1000
 	var sleepFactor = 1
 

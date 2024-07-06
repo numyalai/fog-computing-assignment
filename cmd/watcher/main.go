@@ -165,7 +165,7 @@ func main() {
 			Total: memTotal,
 		}
 
-		cmd = exec.Command("cat", "/proc/stat") // top -n1 | grep -i cpuProcStat
+		cmd = exec.Command("cat", "/proc/stat")
 		cpuProcStat, err := cmd.Output()
 
 		if err != nil {
@@ -174,7 +174,7 @@ func main() {
 
 		var previous = getCpuSlice(string(cpuProcStat))
 		time.Sleep(1 * time.Second)
-		cmd = exec.Command("cat", "/proc/stat") // top -n1 | grep -i cpu
+		cmd = exec.Command("cat", "/proc/stat")
 		cpuProcStat, err = cmd.Output()
 
 		if err != nil {

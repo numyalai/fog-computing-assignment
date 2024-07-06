@@ -77,7 +77,6 @@ func main() {
 	go util.RouterSendLoop(storage, &reqBuffer, ser, &acks)
 	defer ser.Close()
 
-	log.Println("Entering UDP main loop")
 	for {
 		n, raddr, err := ser.ReadFromUDP(buf)
 		if err != nil {
@@ -121,53 +120,6 @@ func main() {
 			acks.Mu.Unlock()
 		}
 	}
-
-	/*storage := util.NewStorage()
-
-	buf := make([]string, 0)
-	var reqBuffer = util.RouterRequestBuffer{Buffer: &buf}
-	go util.RouterSendLoop(storage, &reqBuffer)
-	go deregisterInactiveClients(storage)
-
-	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
-		buffer := &bytes.Buffer{}
-		buffer.ReadFrom(r.Body)
-		t := util.ClientMessage{}
-		err := json.Unmarshal(buffer.Bytes(), &t)
-		if err != nil {
-			log.Println("Unable to unmarshal HTTP request from client.", err)
-		}
-		log.Println(t)
-		cliendID := t.Endpoint
-		storage.RegisterClient(cliendID, t.Data.Memory, t.Data.Cpu)
-		storage.UpdateClient(cliendID, t.Data.Memory, t.Data.Cpu)
-
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	})
-
-	server.HandleFunc("/forward", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
-		buffer := new(bytes.Buffer)
-		buffer.ReadFrom(r.Body)
-		body := buffer.String()
-		log.Println(body)
-		reqBuffer.Mu.Lock()
-		defer reqBuffer.Mu.Unlock()
-		*reqBuffer.Buffer = append(*reqBuffer.Buffer, body)
-		w.Header().Set("Content-Type", "text/plain")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK\n"))
-	})
-
-	log.Printf("Serving at %s", listenAddr)
-	err := http.ListenAndServe(listenAddr, server)
-
-	if err != nil {
-		log.Printf("%s", err)
-	}*/
 
 	log.Println("Stopped.")
 }

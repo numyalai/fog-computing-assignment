@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -13,25 +12,27 @@ import (
 )
 
 func PrintUsage() {
-	log.Printf("Usage: %s <IP_OF_CLIENT> <IP_OF_ROUTER>", os.Args[0])
+	log.Printf("Usage: %s <IP_OF_ROUTER>", os.Args[0])
 }
 
 func main() {
 	log.SetPrefix("client: ")
 	log.Println("Starting ...")
 
-	argsWithoutProg := os.Args[1:]
-
-	listenAddr := fmt.Sprintf("%s:5002", argsWithoutProg[0])
-	if listenAddr == ":5002" {
+	if len(os.Args) < 2 {
 		PrintUsage()
 		os.Exit(1)
 	}
-	if argsWithoutProg[1] == "" {
+
+	argsWithoutProg := os.Args[1:]
+
+	listenAddr := "0.0.0.0:5002"
+	if argsWithoutProg[0] == "" {
 		PrintUsage()
 		os.Exit(2)
 	}
-	routerEndpoint := argsWithoutProg[1]
+	routerEndpoint := argsWithoutProg[0]
+	log.Println(routerEndpoint)
 
 	server := http.NewServeMux()
 
