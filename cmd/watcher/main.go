@@ -13,6 +13,26 @@ import (
 	"github.com/numyalai/fog-computing-assignment/pkg/util"
 )
 
+type CpuCore struct {
+	User   uint64
+	Niced  uint64
+	System uint64
+	Idle   uint64
+}
+
+type Cpu struct {
+	Cores []CpuCore
+}
+
+type DeltaCpu struct {
+	Cores []DeltaCpuCore
+}
+
+type DeltaCpuCore struct {
+	Idle      uint64
+	Execution uint64
+}
+
 func getMemorySlice(freeOutput string) []string {
 	var freeCmdOutput = strings.Split(freeOutput, "\n")[1]
 	var memStat = make([]string, 0)
@@ -30,12 +50,15 @@ func getMemorySlice(freeOutput string) []string {
 	return memStat
 }
 
-func getCpuSlice(cpuOutput string) [][]string {
-	var cpuStat = make([][]string, 0)
+func getCpuSlice(cpuOutput string) Cpu {
+	var cpuStat = Cpu{
+		Cores: make([]CpuCore, 0),
+	}
 	var cpuLines = strings.Split(cpuOutput, "\n")
 	for _, line := range cpuLines {
 		var skip = false
 		var index = -1
+		var core = CpuCore{}
 		if !strings.Contains(line, "cpu") {
 			break
 		}
@@ -53,9 +76,61 @@ func getCpuSlice(cpuOutput string) [][]string {
 			}
 		}
 		var fields = strings.Split(line[index:], " ")
-		cpuStat = append(cpuStat, fields[:4])
+		tmpUser, err := strconv.ParseUint(fields[0], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse user cycles of CPU", err)
+			continue
+		}
+		tmpNiced, err := strconv.ParseUint(fields[1], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse user niced cycles of CPU", err)
+			continue
+		}
+		tmpSystem, err := strconv.ParseUint(fields[2], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse system cycles of CPU", err)
+			continue
+		}
+		tmpIdle, err := strconv.ParseUint(fields[3], 10, 64)
+		if err != nil {
+			log.Panicln("Unable to parse idle cycles of CPU", err)
+			continue
+		}
+
+		core.User = tmpUser
+		core.Niced = tmpNiced
+		core.System = tmpSystem
+		core.Idle = tmpIdle
+		cpuStat.Cores = append(cpuStat.Cores, core)
 	}
 	return cpuStat
+}
+
+func getDeltaCpu(previous, current Cpu) DeltaCpu {
+	var cpu = DeltaCpu{
+		Cores: make([]DeltaCpuCore, 0),
+	}
+
+	for i := 0; i < len(previous.Cores); i++ {
+		var pCore CpuCore = previous.Cores[i]
+		var cCore CpuCore = current.Cores[i]
+		previousExecutionCycles := pCore.User + pCore.Niced + pCore.System
+		executionCycles := cCore.User + cCore.Niced + cCore.System
+
+		previousIdle := pCore.Idle
+		currentIdle := cCore.Idle
+
+		previousSum := previousIdle + previousExecutionCycles
+		currentSum := currentIdle + executionCycles
+
+		deltaTotal := currentSum - previousSum
+		deltaIdle := currentIdle - previousIdle
+		cpu.Cores = append(cpu.Cores, DeltaCpuCore{
+			Execution: deltaTotal,
+			Idle:      deltaIdle,
+		})
+	}
+	return cpu
 }
 
 func main() {
@@ -73,12 +148,6 @@ func main() {
 			log.Println(err)
 		}
 
-		cmd = exec.Command("cat", "/proc/stat")
-		cpu, err := cmd.Output()
-
-		if err != nil {
-			log.Println(err)
-		}
 		var memSlice = getMemorySlice(string(free))
 		memTotal, err := strconv.ParseUint(memSlice[0], 10, 64)
 		if err != nil {
@@ -95,43 +164,36 @@ func main() {
 			Free:  memFree,
 			Total: memTotal,
 		}
-		var cpuSlice = getCpuSlice(string(cpu))
 
-		var user uint64 = 0
-		var niced uint64 = 0
-		var system uint64 = 0
-		var idle uint64 = 0
+		cmd = exec.Command("cat", "/proc/stat") // top -n1 | grep -i cpuProcStat
+		cpuProcStat, err := cmd.Output()
 
-		for _, core := range cpuSlice {
-			tmpUser, err := strconv.ParseUint(core[0], 10, 64)
-			if err != nil {
-				log.Panicln("Unable to parse user cycles of CPU", err)
-				continue
-			}
-			tmpNiced, err := strconv.ParseUint(core[1], 10, 64)
-			if err != nil {
-				log.Panicln("Unable to parse user niced cycles of CPU", err)
-				continue
-			}
-			tmpSystem, err := strconv.ParseUint(core[2], 10, 64)
-			if err != nil {
-				log.Panicln("Unable to parse system cycles of CPU", err)
-				continue
-			}
-			tmpIdle, err := strconv.ParseUint(core[3], 10, 64)
-			if err != nil {
-				log.Panicln("Unable to parse idle cycles of CPU", err)
-				continue
-			}
-			user += tmpUser
-			niced += tmpNiced
-			system += tmpSystem
-			idle += tmpIdle
+		if err != nil {
+			log.Println(err)
+		}
+
+		var previous = getCpuSlice(string(cpuProcStat))
+		time.Sleep(1 * time.Second)
+		cmd = exec.Command("cat", "/proc/stat") // top -n1 | grep -i cpu
+		cpuProcStat, err = cmd.Output()
+
+		if err != nil {
+			log.Println(err)
+		}
+		var current = getCpuSlice(string(cpuProcStat))
+
+		var dCpu = getDeltaCpu(previous, current)
+
+		var idle, total uint64
+
+		for _, dCore := range dCpu.Cores {
+			idle += dCore.Idle
+			total += dCore.Execution
 		}
 
 		var cpuData = util.CpuData{
 			Free:  idle,
-			Total: user + niced + system,
+			Total: total,
 		}
 		var tmp = util.WatcherMessage{
 			Memory: memData,

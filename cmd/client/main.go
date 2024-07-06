@@ -2,12 +2,13 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/numyalai/fog-computing-assignment/pkg/util"
 )
 
@@ -34,26 +35,23 @@ func main() {
 
 	server := http.NewServeMux()
 
-	buf := make([]util.ClientMessage, 0)
-	var reqBuffer = util.ClientRequestBuffer{Buffer: &buf}
-	go util.ClientSendLoop(&reqBuffer, routerEndpoint)
+	buf := make([]util.PacketUDP, 0)
+	var reqBuffer = util.RequestBuffer{Buffer: buf}
+	var packets = util.SafeBuffer{
+		Data: make([]util.PacketUDP, 0),
+	}
+	go util.RouterConnection(&reqBuffer, routerEndpoint, &packets)
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
 		buffer := &bytes.Buffer{}
 		buffer.ReadFrom(r.Body)
-		t := util.WatcherMessage{}
-		err := json.Unmarshal(buffer.Bytes(), &t)
-		if err != nil {
-			log.Println("Unable to parse requests body: ", err)
+		msg := util.PacketUDP{
+			Id:   uuid.New().String(),
+			Data: buffer.Bytes(),
 		}
-		msg := util.ClientMessage{
-			Endpoint: listenAddr + "/forward",
-			Data:     t,
-		}
-		log.Println(t)
 		reqBuffer.Mu.Lock()
-		*reqBuffer.Buffer = append(*reqBuffer.Buffer, msg)
+		reqBuffer.Buffer = append(reqBuffer.Buffer, msg)
 		reqBuffer.Mu.Unlock()
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusOK)
@@ -72,12 +70,24 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	log.Printf("Serving at %s", listenAddr)
-	err := http.ListenAndServe(listenAddr, server)
+	go func() {
+		log.Printf("Serving at %s", listenAddr)
+		err := http.ListenAndServe(listenAddr, server)
 
-	if err != nil {
-		log.Printf("%s", err)
+		if err != nil {
+			log.Printf("%s", err)
+		}
+	}()
+
+	for {
+		if len(packets.Data) <= 0 {
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		packets.Mu.Lock()
+		packet := packets.Data[0]
+		packets.Data = packets.Data[1:]
+		packets.Mu.Unlock()
+		log.Printf("%s : %s", packet.Id, string(packet.Data))
 	}
-
-	log.Println("Stopped.")
 }

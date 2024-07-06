@@ -4,21 +4,13 @@ import (
 	"encoding/json"
 	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
-type ClientRequestBuffer struct {
+type RequestBuffer struct {
 	Mu     sync.Mutex
-	Buffer *[]ClientMessage
-}
-
-type RouterRequestBuffer struct {
-	Mu     sync.Mutex
-	Buffer *[]string
+	Buffer []PacketUDP
 }
 
 type PacketUDP struct {
@@ -26,65 +18,40 @@ type PacketUDP struct {
 	Data []byte
 }
 
-func Send2Client(conn *net.UDPConn, data string) error {
-	return Send(conn, []byte(data))
-}
-
-func Send2Router(conn *net.UDPConn, data ClientMessage) error {
+func Send2Router(conn *net.UDPConn, data PacketUDP, acks *SafeAcks) error {
 	b, err := json.Marshal(data)
 	if err != nil {
 		log.Println("Unable to marshal. ", err)
-		time.Sleep(1 * time.Second)
-		Send2Router(conn, data)
-	}
-	return Send(conn, b)
-}
-
-func Send(conn *net.UDPConn, data []byte) error {
-	body := PacketUDP{
-		Id:   uuid.New().String(),
-		Data: data,
-	}
-	udpBody, err := json.Marshal(body)
-	if err != nil {
-		log.Println("Unable to marshal")
 		return err
 	}
-	err = SendMessage(conn, udpBody)
-	for err != nil {
-		log.Println("Retrying after 1 second 1")
-		time.Sleep(1 * time.Second)
-		err = SendMessage(conn, udpBody)
-	}
-	messageID, readErr := receiveAck(conn)
-	if readErr != nil {
-		log.Println("Unable to read ack. ", readErr)
-		return readErr
-	}
-	if messageID == body.Id {
-		return nil
-	}
-	log.Println("Retrying to send data, not acknowledged.")
-	return Send(conn, data)
+	return Send(conn, b, data.Id, acks)
 }
 
-func receiveAck(conn *net.UDPConn) (string, error) {
-	buf := make([]byte, 4096)
-	ack := PacketUDP{}
-	n, _, err := conn.ReadFromUDP(buf)
-	if err != nil {
-		log.Println("Unable to read from UDP connection.", err)
-		return "", err
+func Send(conn *net.UDPConn, data []byte, id string, acks *SafeAcks) error {
+	for i := 0; i < 10; i++ {
+		err := SendMessage(conn, data)
+		if err != nil {
+			log.Println("Retrying... ", err)
+			time.Sleep(100 * time.Millisecond)
+			continue
+		}
+		for i := 0; i < 10; i++ {
+			time.Sleep(100 * time.Millisecond)
+			acks.Mu.Lock()
+			data := acks.Acks
+			acks.Mu.Unlock()
+			for _, ack := range data {
+				if ack == id {
+					return nil
+				}
+			}
+		}
 	}
-	err = json.Unmarshal(buf[:n], &ack)
-	if err != nil {
-		log.Println("Unable to unmarshal ack apckage. ", err)
-		return "", err
-	}
-	return ack.Id, nil
+	return &net.OpError{}
 }
 
 func SendMessage(conn *net.UDPConn, msg []byte) error {
+	// TODO: Check if we need to lock the mutex here or not.
 	var tryNumber = 0
 	for {
 		_, err := conn.Write(msg)
@@ -101,7 +68,17 @@ func SendMessage(conn *net.UDPConn, msg []byte) error {
 	}
 }
 
-func ClientSendLoop(reqBuffer *ClientRequestBuffer, address string) {
+type SafeAcks struct {
+	Mu   sync.Mutex
+	Acks []string
+}
+
+type SafeBuffer struct {
+	Mu   sync.Mutex
+	Data []PacketUDP
+}
+
+func RouterConnection(reqBuffer *RequestBuffer, address string, packets *SafeBuffer) {
 	var baseSleep = 1000
 	var sleepFactor = 1
 
@@ -110,88 +87,187 @@ func ClientSendLoop(reqBuffer *ClientRequestBuffer, address string) {
 		IP:   net.ParseIP(address),
 	}
 
+	acks := SafeAcks{
+		Acks: make([]string, 0),
+	}
+
 	for {
-		c, err := net.DialUDP("udp", nil, &addr) // TODO: rework listening on this and discriminate between ACKS and forwards
+		c, err := net.DialUDP("udp", nil, &addr)
 		if err != nil {
-			log.Panic("Unable to establish udp connection. ", err)
-			os.Exit(3)
+			log.Println("ERROR: Unable to establish udp connection. ", err)
+			var sleepDuration = baseSleep * sleepFactor
+			log.Printf("Retrying after %d seconds", sleepDuration/1000)
+			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
+			if sleepFactor <= 16 {
+				sleepFactor = sleepFactor * 2
+			}
+			continue
 		}
-		if len(*reqBuffer.Buffer) <= 0 {
+		sleepFactor = 1
+		var running = true
+		go handleRouterResponses(c, &acks, packets, &running)
+		handleBufferPacketSend(c, reqBuffer, &acks)
+		running = false
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func handleRouterResponses(socket *net.UDPConn, acks *SafeAcks, packets *SafeBuffer, running *bool) {
+	buf := make([]byte, 4096)
+	for *running {
+		input := PacketUDP{}
+		n, _, err := socket.ReadFromUDP(buf)
+		if err != nil {
+			log.Println("Unable to read from UDP socket. ", err)
+			continue
+		}
+		err = json.Unmarshal(buf[:n], &input)
+		if err != nil {
+			log.Println("Unable to unmarshal buffer. ", err)
+			continue
+		}
+		if input.Data == nil {
+			acks.Mu.Lock()
+			acks.Acks = append(acks.Acks, input.Id)
+			acks.Mu.Unlock()
+		} else {
+			tmp := PacketUDP{
+				Id: input.Id,
+			}
+			body, err := json.Marshal(tmp)
+			if err != nil {
+				log.Println("Unable to marshal ACK packet. ", err)
+			}
+			_, err = socket.Write(body)
+			if err != nil {
+				log.Println("Unable to send ACK packet. ", err)
+				continue
+			}
+			packets.Mu.Lock()
+			packets.Data = append(packets.Data, input)
+			packets.Mu.Unlock()
+		}
+	}
+}
+
+func handleBufferPacketSend(socket *net.UDPConn, reqBuffer *RequestBuffer, acks *SafeAcks) {
+	var sleepFactor = 1
+	var baseSleep = 1000
+	for {
+		if len(reqBuffer.Buffer) <= 0 {
 			time.Sleep(1000 * time.Millisecond)
 			continue
 		}
 		reqBuffer.Mu.Lock()
-		req := (*reqBuffer.Buffer)[0]
+		req := (reqBuffer.Buffer)[0]
 		reqBuffer.Mu.Unlock()
 
-		err = Send2Router(c, req)
+		err := Send2Router(socket, req, acks)
 
 		if err != nil {
 			var sleepDuration = baseSleep * sleepFactor
 			log.Printf("Retrying after %d seconds", sleepDuration/1000)
 			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
-			if sleepFactor < 120 {
+			if sleepFactor <= 16 {
 				sleepFactor = sleepFactor * 2
+				continue
 			}
-			continue
+			break
 		}
 
 		sleepFactor = 1
 		reqBuffer.Mu.Lock()
-		*reqBuffer.Buffer = (*reqBuffer.Buffer)[1:] // remove handled element from queue
+		reqBuffer.Buffer = removePacketUDP(reqBuffer.Buffer, req)
 		reqBuffer.Mu.Unlock()
 	}
 }
 
-func RouterSendLoop(storage *Storage, reqBuffer *RouterRequestBuffer, socket *net.UDPConn) {
+func RouterSendBufferHandler(req PacketUDP, socket *net.UDPConn, address net.UDPAddr, acks *SafeAcks) error {
 	var baseSleep = 1000
 	var sleepFactor = 1
+
 	for {
-		if len(*reqBuffer.Buffer) <= 0 {
+		body, err := json.Marshal(req)
+
+		if err != nil {
+			log.Println("Unable to marshal UDP packet.")
+			time.Sleep(1000)
+			continue
+		}
+
+		_, err = socket.WriteToUDP(body, &address)
+
+		if err != nil {
+			var sleepDuration = baseSleep * sleepFactor
+			log.Println(err)
+			log.Printf("Failed to forward datagram. Retrying after %d seconds.", sleepDuration/1000)
+			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
+			if sleepFactor <= 16 {
+				sleepFactor = sleepFactor * 2
+				continue
+			}
+			break
+		}
+
+		for i := 0; i < 10; i++ {
+			time.Sleep(100 * time.Millisecond)
+			acks.Mu.Lock()
+			data := acks.Acks
+			acks.Mu.Unlock()
+			for _, ack := range data {
+				if ack == req.Id {
+					acks.Mu.Lock()
+					acks.Acks = removeString(acks.Acks, req.Id)
+					acks.Mu.Unlock()
+					return nil
+				}
+			}
+		}
+		break
+	}
+	return net.ErrWriteToConnected
+}
+
+func RouterSendLoop(storage *Storage, reqBuffer *RequestBuffer, socket *net.UDPConn, acks *SafeAcks) {
+	for {
+		if len(reqBuffer.Buffer) <= 0 {
 			time.Sleep(1000 * time.Millisecond)
 			continue
 		}
-		var address *net.UDPAddr
-		var cpu float64
-		var ram float64
-		for endpoint, data := range storage.GetAllClients() {
+		var address net.UDPAddr
+		var cpu float64 = 0.0
+		var ram float64 = 0.0
+		var found = false
+		for _, data := range storage.GetAllClients() {
 			var cpuAvailability float64 = float64(data.CPU.Free) / float64(data.CPU.Total) * 100.0
 			var ramAvailability float64 = float64(data.RAM.Free) / float64(data.RAM.Total) * 100.0
-			log.Printf("ENTRY := %s CPU: %f%% RAM: %f%%", endpoint, cpuAvailability, ramAvailability)
-			if cpu > 10.0 && ram > 10.0 && (cpuAvailability > cpu && ramAvailability > ram || cpuAvailability > cpu && ramAvailability > 20.0) {
+			if cpuAvailability > 10.0 && ramAvailability > 10.0 && (cpuAvailability > cpu && ramAvailability > ram || cpuAvailability > cpu && ramAvailability > 20.0) {
 				cpu = cpuAvailability
 				ram = ramAvailability
-				address = endpoint
+				address = *data.Address
+				found = true
 			}
 		}
-		if address != nil {
+		if !found {
 			log.Println("Unable to find suitable edge node. Retrying in 1 second.")
 			time.Sleep(1000 * time.Millisecond)
 			continue
 		}
+		log.Printf("Forwarding request -> %s", address.String())
+
 		reqBuffer.Mu.Lock()
-		req := (*reqBuffer.Buffer)[0]
+		req := (reqBuffer.Buffer)[0]
 		reqBuffer.Mu.Unlock()
-		_, err := socket.WriteToUDP([]byte(req), address) // TODO: loop and retry after some fails with new routing decision
+
+		err := RouterSendBufferHandler(req, socket, address, acks)
 
 		if err != nil {
-			var sleepDuration = baseSleep * sleepFactor
-			log.Printf("Failed to forward datagram. Retrying after %d seconds.", sleepDuration/1000)
-			time.Sleep(time.Duration(sleepDuration) * time.Millisecond)
-			if sleepFactor < 120 {
-				sleepFactor = sleepFactor * 2
-			}
+			log.Println("Unable to send Buffer packet.")
 			continue
 		}
 
-		sleepFactor = 1
 		reqBuffer.Mu.Lock()
-		for i, r := range *reqBuffer.Buffer {
-			if r == req {
-				(*reqBuffer.Buffer) = append((*reqBuffer.Buffer)[:i], (*reqBuffer.Buffer)[:i+1]...)
-				break
-			}
-		}
+		reqBuffer.Buffer = removePacketUDP(reqBuffer.Buffer, req)
 		reqBuffer.Mu.Unlock()
 	}
 }
