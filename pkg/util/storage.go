@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -29,15 +30,42 @@ func getUDPAddrRepresentation(addr *net.UDPAddr) string {
 	return fmt.Sprintf("%s:%d", addr.IP.String(), addr.Port)
 }
 
-func (cs *Storage) RegisterClient(clientID *net.UDPAddr, ram MemoryData, cpu CpuData) {
+func (s *Storage) RegisterOrUpdateClient(id *net.UDPAddr, ram MemoryData, cpu CpuData) {
+	s.Mu.Lock()
+
+	if client, exists := s.Storage[getUDPAddrRepresentation(id)]; exists {
+		if ram.Total != 0 {
+			log.Printf("Updating RAM for %s", id)
+			client.RAM = ram
+		}
+		if cpu.Total != 0 {
+			log.Printf("Updating CPU for %s", id)
+			client.CPU = cpu
+		}
+		client.UpdatedAt = time.Now()
+		s.Mu.Unlock()
+	} else {
+		s.Mu.Unlock()
+		s.RegisterClient(id, ram, cpu)
+	}
+}
+
+func (cs *Storage) RegisterClient(id *net.UDPAddr, ram MemoryData, cpu CpuData) {
 	cs.Mu.Lock()
 	defer cs.Mu.Unlock()
-	cs.Storage[getUDPAddrRepresentation(clientID)] = &Client{
-		RAM:       ram,
-		CPU:       cpu,
-		Address:   clientID,
+	client := Client{
+		Address:   id,
 		UpdatedAt: time.Now(),
 	}
+	if ram.Total != 0 {
+		log.Printf("Storing CPU for %s", id)
+		client.RAM = ram
+	}
+	if cpu.Total != 0 {
+		log.Printf("Storing CPU for %s", id)
+		client.CPU = cpu
+	}
+	cs.Storage[getUDPAddrRepresentation(id)] = &client
 }
 
 func (s *Storage) UpdateClient(id *net.UDPAddr, ram MemoryData, cpu CpuData) {
@@ -45,8 +73,12 @@ func (s *Storage) UpdateClient(id *net.UDPAddr, ram MemoryData, cpu CpuData) {
 	defer s.Mu.Unlock()
 
 	if client, exists := s.Storage[getUDPAddrRepresentation(id)]; exists {
-		client.RAM = ram
-		client.CPU = cpu
+		if ram.Total != 0 {
+			client.RAM = ram
+		}
+		if cpu.Total != 0 {
+			client.CPU = cpu
+		}
 		client.UpdatedAt = time.Now()
 	}
 }

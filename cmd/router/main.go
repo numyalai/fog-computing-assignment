@@ -28,11 +28,10 @@ func main() {
 	var reqBuffer = util.RequestBuffer{Buffer: allocBuffer}
 	server := http.NewServeMux()
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
 		buffer := new(bytes.Buffer)
 		buffer.ReadFrom(r.Body)
 		body := buffer.String()
-		log.Println(body)
+		log.Printf("Received %s request from %s with HTTP body: %s\n", r.Method, r.RemoteAddr, body)
 		tmp := util.PacketUDP{
 			Id:   uuid.New().String(),
 			Data: []byte(body),
@@ -96,14 +95,12 @@ func main() {
 			if err != nil {
 				log.Println("Unable to unmarshal HTTP request from client.", err)
 			}
-			storage.RegisterClient(raddr, t.Memory, t.Cpu)
-			storage.UpdateClient(raddr, t.Memory, t.Cpu)
+			storage.RegisterOrUpdateClient(raddr, t.Memory, t.Cpu)
 
 			tmp := util.PacketUDP{
 				Id:   req.Id,
 				Data: nil,
 			}
-			log.Println(string(buf[:n]))
 
 			resp, err := json.Marshal(tmp)
 			if err != nil {

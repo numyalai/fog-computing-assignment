@@ -33,23 +33,6 @@ type DeltaCpuCore struct {
 	Execution uint64
 }
 
-func getMemorySlice(freeOutput string) []string {
-	var freeCmdOutput = strings.Split(freeOutput, "\n")[1]
-	var memStat = make([]string, 0)
-	var tmp = strings.TrimSpace(strings.TrimLeft(freeCmdOutput, "Mem:"))
-	var index = 0
-	for i, char := range tmp {
-		if index == -1 && char != ' ' {
-			index = i
-		}
-		if index > -1 && char == ' ' {
-			memStat = append(memStat, tmp[index:i])
-			index = -1
-		}
-	}
-	return memStat
-}
-
 func getCpuSlice(cpuOutput string) Cpu {
 	var cpuStat = Cpu{
 		Cores: make([]CpuCore, 0),
@@ -134,38 +117,16 @@ func getDeltaCpu(previous, current Cpu) DeltaCpu {
 }
 
 func main() {
-	log.SetPrefix("watcher: ")
+	log.SetPrefix("cpu_watcher: ")
 	log.Println("Starting ...")
 
 	var clientEndpoint = "http://localhost:5002"
 
+	log.Printf("Directing messages at %s\n", clientEndpoint)
+
 	client := &http.Client{}
 	for {
-		cmd := exec.Command("free")
-		free, err := cmd.Output()
-
-		if err != nil {
-			log.Println(err)
-		}
-
-		var memSlice = getMemorySlice(string(free))
-		memTotal, err := strconv.ParseUint(memSlice[0], 10, 64)
-		if err != nil {
-			log.Panicln("Unable to parse total available memory.", err)
-			time.Sleep(time.Duration(3) * time.Second)
-			continue
-		}
-		memFree, err := strconv.ParseUint(memSlice[2], 10, 64)
-		if err != nil {
-			log.Panicln("Unable to parse free available memory", err)
-			continue
-		}
-		var memData = util.MemoryData{
-			Free:  memFree,
-			Total: memTotal,
-		}
-
-		cmd = exec.Command("cat", "/proc/stat")
+		cmd := exec.Command("cat", "/proc/stat")
 		cpuProcStat, err := cmd.Output()
 
 		if err != nil {
@@ -179,6 +140,7 @@ func main() {
 
 		if err != nil {
 			log.Println(err)
+			continue
 		}
 		var current = getCpuSlice(string(cpuProcStat))
 
@@ -195,29 +157,38 @@ func main() {
 			Free:  idle,
 			Total: total,
 		}
+
 		var tmp = util.WatcherMessage{
-			Memory: memData,
-			Cpu:    cpuData,
+			Cpu: cpuData,
 		}
+
 		body, err := json.Marshal(tmp)
+
 		if err != nil {
 			log.Println("Unable to marshal body message.", err)
+			continue
 		}
+
 		req, err := http.NewRequest("POST", clientEndpoint, bytes.NewBuffer(body))
+
 		if err != nil {
-			log.Panicln("Unable to creat HTTP POST request", err)
+			log.Println("Unable to creat HTTP POST request", err)
 			continue
 		}
+
 		resp, err := client.Do(req)
+
 		if err != nil {
-			log.Panicln("Unable to perform HTTP POST request to client", err)
+			log.Println("Unable to perform HTTP POST request to client", err)
 			continue
 		}
+
 		if resp.StatusCode >= 400 {
-			log.Panicf("Error in request handeling at client. HTTP %d %s", resp.StatusCode, resp.Status)
+			log.Printf("Error in request handeling at client. HTTP %d %s", resp.StatusCode, resp.Status)
 			continue
 		}
-		log.Printf("Sent sytem status to %s", clientEndpoint)
-		time.Sleep(time.Duration(3) * time.Second) // might need to change the timescaling here later
+
+		log.Printf("CPU status: Available %.2f%%", float64(cpuData.Free)/float64(cpuData.Total)*100.0)
+		time.Sleep(time.Duration(1) * time.Second) // might need to change the timescaling here later
 	}
 }

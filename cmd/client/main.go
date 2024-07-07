@@ -2,9 +2,11 @@ package main
 
 import (
 	"bytes"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,7 +14,7 @@ import (
 )
 
 func PrintUsage() {
-	log.Printf("Usage: %s <IP_OF_ROUTER>", os.Args[0])
+	log.Printf("Usage: %s <IP_OF_ROUTER>:<PORT_OF_ROUTER>", os.Args[0])
 }
 
 func main() {
@@ -32,7 +34,11 @@ func main() {
 		os.Exit(2)
 	}
 	routerEndpoint := argsWithoutProg[0]
-	log.Println(routerEndpoint)
+	if !strings.Contains(routerEndpoint, ":") {
+		log.Printf("Input: '%s'", routerEndpoint)
+		PrintUsage()
+		os.Exit(6)
+	}
 
 	server := http.NewServeMux()
 
@@ -44,7 +50,7 @@ func main() {
 	go util.RouterConnection(&reqBuffer, routerEndpoint, &packets)
 
 	server.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("Received %s request from %s", r.Method, r.RemoteAddr)
+		log.Printf("Forwarding message -> router@%s", routerEndpoint)
 		buffer := &bytes.Buffer{}
 		buffer.ReadFrom(r.Body)
 		msg := util.PacketUDP{
@@ -89,6 +95,24 @@ func main() {
 		packet := packets.Data[0]
 		packets.Data = packets.Data[1:]
 		packets.Mu.Unlock()
-		log.Printf("%s : %s", packet.Id, string(packet.Data))
+		stressAddress := "localhost:5010"
+		client := http.Client{Timeout: 5000 * time.Millisecond}
+		body := bytes.NewBuffer(packet.Data)
+		for {
+			log.Println(packet.Id)
+			resp, err := client.Post(fmt.Sprintf("http://%s", stressAddress), "plain/text", body)
+			if err != nil {
+				log.Println("Cannot go stress the system :'(", err)
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			if resp.StatusCode >= 400 {
+				log.Println("Error in processing forwarded stress message.")
+				time.Sleep(100 * time.Millisecond)
+				continue
+			}
+			log.Printf("Forwarding %s -> %s", string(packet.Data), stressAddress)
+			break
+		}
 	}
 }
