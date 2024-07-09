@@ -27,4 +27,4 @@ git clone https://github.com/numyalai/fog-computing-assignment.git
 cd fog-computing-assignment
 ```
 
-To locally execute the project, simply run `make` inside the repository's root folder; this will build and automatically start the `router,` `client,` `cpu_watcher`, and `ram_watcher` services. If you want to cause some stress, try running the `go-stress` project, found [here](https://github.com/numyalai/go-stress).
+To locally execute the project, simply run `./make` inside the repository's root folder; this will build and automatically start the `router,` `client,` `cpu_watcher`, and `ram_watcher` services. If you want to cause some stress, try running the `go-stress` project, found [here](https://github.com/numyalai/go-stress).
