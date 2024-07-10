@@ -8,6 +8,12 @@ This project is spawned by a university assignment on fog computing. More precis
 
 The report can be found in this repository with the name `FC_Prototype_Report.pdf`, see [here](https://github.com/numyalai/fog-computing-assignment/blob/main/FC_Prototype_Report.pdf).
 
+## Video Demonstration
+
+Due to GitHub's file size constraints, we are unable to upload the video demonstration directly to this repository. However, you can view the video by accessing the following link on Google Drive:
+
+[View Video Demonstration](https://drive.google.com/file/d/1HxlDL0NIFKqJ8cKB_mrjmhFCIXMfQHW4/view?usp=drive_link)
+
 ## Project Structure
 
 - `cmd/client`: This directory contains the client service implementation.
@@ -36,15 +42,18 @@ To locally execute the project, simply run `make` inside the repository's root f
 The following endpoints are used by the implemented services.
 
 ### router
+
 - HTTP endpoint on port `6001`
 - UDP socket listening on port `5001`
 
 The HTTP endpoint accepts any HTTP request containing a body. The body will be forwarded to the registered client, with the most CPU and RAM available.
 
 ### client
+
 - HTTP endpoint listening on port `5002`
 
 The HTTP endpoint accepts POST requests having the following go format:
+
 ```
 type WatcherMessage struct {
 	Memory MemoryData
@@ -61,7 +70,9 @@ type CpuData struct {
 	Total uint64
 }
 ```
+
 otherwise in JSON format:
+
 ```
 {
   "memory": {
