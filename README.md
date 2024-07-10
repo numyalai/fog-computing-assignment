@@ -14,8 +14,6 @@ Due to GitHub's file size constraints, we are unable to upload the video demonst
 
 [View Video Demonstration](https://drive.google.com/file/d/1HxlDL0NIFKqJ8cKB_mrjmhFCIXMfQHW4/view?usp=drive_link)
 
-<iframe src="https://drive.google.com/file/d/1HxlDL0NIFKqJ8cKB_mrjmhFCIXMfQHW4/preview" width="640" height="480"></iframe>
-
 ## Project Structure
 
 - `cmd/client`: This directory contains the client service implementation.
