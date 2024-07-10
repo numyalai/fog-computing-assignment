@@ -6,6 +6,8 @@
 
 This project is spawned by a university assignment on fog computing. More precisely, it involves implementing a reliable message transfer network protocol in a use case of our choice.
 
+The report can be found in this repository with the name `FC_Prototype_Report.pdf`, see [here](https://github.com/numyalai/fog-computing-assignment/blob/main/FC_Prototype_Report.pdf).
+
 ## Project Structure
 
 - `cmd/client`: This directory contains the client service implementation.
